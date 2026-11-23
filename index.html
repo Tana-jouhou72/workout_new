@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#f4f6fb">
+    <meta name="description" content="Track your weekly workout one set at a time and time your rests.">
+    <title>Workout Tracker</title>
+    <link rel="stylesheet" href="./styles.css">
+    <script src="./app.js" defer></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="shell header-inner">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true"><span class="dumbbell"></span></span>
+          Workout Tracker
+        </div>
+        <div class="week" id="week" aria-label="Workout week">
+          <span class="calendar-icon" aria-hidden="true"></span>
+          <span id="week-dates"></span>
+        </div>
+      </div>
+    </header>
+
+    <main class="shell workout">
+      <nav class="day-picker" aria-label="Workout day" id="day-picker"></nav>
+
+      <div class="workout-layout">
+        <section class="routine" aria-labelledby="day-title">
+          <div class="routine-heading">
+            <h1 id="day-title"></h1>
+            <p id="day-details"></p>
+          </div>
+
+          <div class="workout-progress">
+            <div class="progress-label" id="progress-label" role="status"></div>
+            <progress id="workout-progress" value="0" max="1" aria-label="Exercises complete"></progress>
+          </div>
+
+          <ul class="exercise-list" id="exercise-list" aria-label="Exercises"></ul>
+        </section>
+
+        <aside class="timer" aria-labelledby="timer-title">
+          <div class="timer-readout">
+            <h2 id="timer-title"><span class="clock-icon" aria-hidden="true"></span>Rest timer</h2>
+            <div class="timer-value" id="timer-value" role="timer" aria-label="Elapsed rest time">00:00</div>
+          </div>
+          <div class="timer-actions">
+            <button class="button button-primary" id="toggle-timer" type="button">Start</button>
+            <button class="button button-secondary" id="reset-timer" type="button">Reset</button>
+          </div>
+        </aside>
+      </div>
+
+      <noscript>Enable JavaScript to track your workouts and use the rest timer.</noscript>
+    </main>
+  </body>
+</html>
