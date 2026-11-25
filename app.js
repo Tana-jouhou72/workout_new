@@ -45,7 +45,8 @@ const routine = [
   },
 ];
 
-const workoutKey = "workout-tracker.workout";
+const legacyWorkoutKey = "workout-tracker.workout";
+const selectionKey = "workout-tracker.selection";
 const timerKey = "workout-tracker.timer";
 const dateFormat = new Intl.DateTimeFormat("en", { month: "short", day: "numeric" });
 
@@ -59,26 +60,7 @@ const weekDates = document.querySelector("#week-dates");
 const timerValue = document.querySelector("#timer-value");
 const toggleTimer = document.querySelector("#toggle-timer");
 const resetTimer = document.querySelector("#reset-timer");
-
-function readStorage(key) {
-  try {
-    return JSON.parse(localStorage.getItem(key));
-  } catch {
-    return null;
-  }
-}
-
-function writeStorage(key, value) {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    // The tracker still works in memory when storage is unavailable.
-  }
-}
-
-function localDateKey(date) {
-  return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
-}
+const storageWarning = document.querySelector("#storage-warning");
 
 function mondayOf(date) {
   const monday = new Date(date);
@@ -86,9 +68,20 @@ function mondayOf(date) {
   return monday;
 }
 
-let workout = readStorage(workoutKey);
+const savedHistory = readStorage(historyKey);
+const legacyWorkout = savedHistory ? null : readStorage(legacyWorkoutKey);
+let workoutHistory = savedHistory ?? migrateWeeklyWorkout(legacyWorkout, routine);
+let selection = readStorage(selectionKey);
 let selectedDay;
 let displayedDate;
+
+function persistHistory() {
+  const saved = writeStorage(historyKey, workoutHistory);
+  storageWarning.hidden = saved;
+  return saved;
+}
+
+if (legacyWorkout) persistHistory();
 
 function refreshWorkoutDate() {
   const today = new Date();
@@ -100,32 +93,27 @@ function refreshWorkoutDate() {
   const sunday = new Date(monday);
   sunday.setDate(sunday.getDate() + 6);
   weekDates.textContent = dateFormat.formatRange(monday, sunday);
+  weekDates.parentElement.setAttribute("aria-label", `Open workout calendar, ${weekDates.textContent}`);
 
-  const week = localDateKey(monday);
-  if (workout?.week !== week) workout = { week, days: {} };
-
-  const savedDay = workout.selection?.date === date
-    ? routine.find((day) => day.id === workout.selection.id)
+  const savedDay = selection?.date === date
+    ? routine.find((day) => day.id === selection.id)
     : undefined;
   selectedDay = savedDay ?? routine.find((day) => day.weekday === today.getDay()) ?? routine[0];
   renderDay();
 }
 
 function exerciseState(exercise) {
-  return workout.days[selectedDay.id]?.[exercise.name] ?? { sets: [], done: false };
-}
-
-function countSets(state) {
-  return state.sets.filter(Boolean).length;
+  return workoutHistory.days[displayedDate]?.[selectedDay.id]?.find(({ name }) => name === exercise.name)
+    ?? { sets: [], done: false };
 }
 
 function isComplete(exercise, state) {
-  return exercise.sets ? countSets(state) === exercise.sets : state.done;
+  return exercise.sets ? state.sets.length === exercise.sets : state.done;
 }
 
-function setButton(index) {
-  return `<button class="button set-button" type="button" data-set="${index}" aria-pressed="false">
-    <span class="check-icon" aria-hidden="true"></span>Set ${index + 1}
+function setButton(number) {
+  return `<button class="button set-button" type="button" data-set="${number}" aria-pressed="false">
+    <span class="check-icon" aria-hidden="true"></span>Set ${number}
   </button>`;
 }
 
@@ -135,7 +123,7 @@ const doneButton = `<button class="button set-button" type="button" data-done ar
 
 function renderExercise(exercise, index) {
   const { name, sets, reps, duration } = exercise;
-  const setCount = sets ?? exerciseState(exercise).sets.length;
+  const setNumbers = sets ? Array.from({ length: sets }, (_, set) => set + 1) : exerciseState(exercise).sets;
   const detail = sets ? `${reps} reps per set` : duration ?? "";
   const addSet = !sets && !duration
     ? '<button class="button add-set" type="button" data-add>+ Log set</button>'
@@ -150,7 +138,7 @@ function renderExercise(exercise, index) {
       ${duration ? "" : '<span class="exercise-count"></span>'}
     </div>
     <div class="exercise-actions" role="group" aria-labelledby="exercise-${index}">
-      <div class="sets">${Array.from({ length: setCount }, (_, set) => setButton(set)).join("")}</div>
+      <div class="sets">${setNumbers.map(setButton).join("")}</div>
       ${addSet}
       ${sets ? "" : doneButton}
     </div>
@@ -164,7 +152,7 @@ function updateExercise(card, exercise) {
 
   const count = card.querySelector(".exercise-count");
   const done = card.querySelector("[data-done]");
-  const completedSets = countSets(state);
+  const completedSets = state.sets.length;
 
   if (count) {
     count.textContent = exercise.sets
@@ -174,7 +162,7 @@ function updateExercise(card, exercise) {
 
   if (done) done.setAttribute("aria-pressed", complete);
   for (const button of card.querySelectorAll("[data-set]")) {
-    button.setAttribute("aria-pressed", Boolean(state.sets[button.dataset.set]));
+    button.setAttribute("aria-pressed", state.sets.includes(Number(button.dataset.set)));
   }
 }
 
@@ -211,10 +199,23 @@ dayPicker.addEventListener("click", (event) => {
 
   refreshWorkoutDate();
   selectedDay = routine.find((day) => day.id === button.dataset.day);
-  workout.selection = { date: displayedDate, id: selectedDay.id };
-  writeStorage(workoutKey, workout);
+  selection = { date: displayedDate, id: selectedDay.id };
+  writeStorage(selectionKey, selection);
   renderDay();
 });
+
+function addOpenSet(card, checkedSets) {
+  let number = 1;
+  while (checkedSets.includes(number)) number++;
+
+  const buttons = card.querySelector(".sets");
+  if (!buttons.querySelector(`[data-set="${number}"]`)) {
+    const next = Array.from(buttons.children).find((button) => Number(button.dataset.set) > number);
+    if (next) next.insertAdjacentHTML("beforebegin", setButton(number));
+    else buttons.insertAdjacentHTML("beforeend", setButton(number));
+  }
+  return number;
+}
 
 exerciseList.addEventListener("click", (event) => {
   const button = event.target.closest("button");
@@ -227,22 +228,21 @@ exerciseList.addEventListener("click", (event) => {
   if (day !== selectedDay) return;
 
   const exercise = selectedDay.exercises[card.dataset.exercise];
-  const state = exerciseState(exercise);
-  if (button.hasAttribute("data-add")) {
-    currentCard.querySelector(".sets").insertAdjacentHTML("beforeend", setButton(state.sets.length));
-    state.sets.push(true);
-  } else if (button.hasAttribute("data-done")) {
-    state.done = !state.done;
+  let { sets, done } = exerciseState(exercise);
+  let setCompleted = false;
+  if (button.hasAttribute("data-done")) {
+    done = !done;
   } else {
-    const index = Number(button.dataset.set);
-    state.sets[index] = !state.sets[index];
+    const number = button.hasAttribute("data-add") ? addOpenSet(currentCard, sets) : Number(button.dataset.set);
+    setCompleted = !sets.includes(number);
+    sets = setCompleted ? [...sets, number].sort((a, b) => a - b) : sets.filter((set) => set !== number);
   }
 
-  workout.days[selectedDay.id] ??= {};
-  workout.days[selectedDay.id][exercise.name] = state;
-  writeStorage(workoutKey, workout);
+  saveExerciseRecord(workoutHistory, displayedDate, selectedDay.id, exerciseRecord(exercise, sets, done));
+  persistHistory();
   updateExercise(currentCard, exercise);
   updateProgress();
+  if (setCompleted) setTimer({ elapsed: 0, startedAt: Date.now() });
 });
 
 let timer = readStorage(timerKey) ?? { elapsed: 0, startedAt: null };
@@ -268,18 +268,45 @@ function renderTimer() {
   if (running) tick = setInterval(updateTimerValue, 100);
 }
 
-toggleTimer.addEventListener("click", () => {
-  timer = timer.startedAt === null
-    ? { elapsed: timer.elapsed, startedAt: Date.now() }
-    : { elapsed: elapsedTime(), startedAt: null };
+function setTimer(state) {
+  timer = state;
   writeStorage(timerKey, timer);
   renderTimer();
+}
+
+toggleTimer.addEventListener("click", () => {
+  setTimer(timer.startedAt === null
+    ? { elapsed: timer.elapsed, startedAt: Date.now() }
+    : { elapsed: elapsedTime(), startedAt: null });
 });
 
 resetTimer.addEventListener("click", () => {
-  timer = { elapsed: 0, startedAt: null };
-  writeStorage(timerKey, timer);
-  renderTimer();
+  setTimer({ elapsed: 0, startedAt: null });
+});
+
+const refreshCalendar = mountWorkoutCalendar({
+  routine,
+  getHistory: () => workoutHistory,
+  restoreBackup(backup) {
+    workoutHistory = mergeWorkoutBackup(workoutHistory, backup, routine);
+    const saved = persistHistory();
+    refreshWorkoutDate();
+    renderDay();
+    return saved;
+  },
+  refreshWorkoutDate,
+});
+
+window.addEventListener("storage", (event) => {
+  if (event.key === historyKey && event.newValue) {
+    workoutHistory = readStorage(historyKey) ?? workoutHistory;
+    renderDay();
+    refreshCalendar();
+  }
+  if (event.key === timerKey && event.newValue) {
+    timer = readStorage(timerKey) ?? timer;
+    renderTimer();
+  }
 });
 
 function refreshPage() {
@@ -291,3 +318,7 @@ document.addEventListener("visibilitychange", refreshPage);
 window.addEventListener("focus", refreshPage);
 refreshWorkoutDate();
 renderTimer();
+
+if ("serviceWorker" in navigator && window.isSecureContext) {
+  navigator.serviceWorker.register("./sw.js").catch((error) => console.warn("Offline setup failed:", error));
+}

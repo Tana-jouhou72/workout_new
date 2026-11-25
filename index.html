@@ -4,9 +4,12 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#f4f6fb">
-    <meta name="description" content="Track your weekly workout one set at a time and time your rests.">
+    <meta name="description" content="Track your workouts one set at a time, time your rests, and review your workout history.">
     <title>Workout Tracker</title>
+    <link rel="manifest" href="./manifest.webmanifest">
+    <link rel="icon" type="image/png" href="./icons/workout-192.png">
     <link rel="stylesheet" href="./styles.css">
+    <script src="./history.js" defer></script>
     <script src="./app.js" defer></script>
   </head>
   <body>
@@ -16,15 +19,16 @@
           <span class="brand-mark" aria-hidden="true"><span class="dumbbell"></span></span>
           Workout Tracker
         </div>
-        <div class="week" id="week" aria-label="Workout week">
+        <button class="week" id="open-calendar" type="button" aria-label="Open workout calendar" aria-haspopup="dialog" aria-controls="workout-calendar">
           <span class="calendar-icon" aria-hidden="true"></span>
           <span id="week-dates"></span>
-        </div>
+        </button>
       </div>
     </header>
 
     <main class="shell workout">
       <nav class="day-picker" aria-label="Workout day" id="day-picker"></nav>
+      <p class="storage-warning" id="storage-warning" role="status" hidden>Device storage is unavailable. Export a backup from the calendar to keep this session.</p>
 
       <div class="workout-layout">
         <section class="routine" aria-labelledby="day-title">
@@ -55,5 +59,39 @@
 
       <noscript>Enable JavaScript to track your workouts and use the rest timer.</noscript>
     </main>
+
+    <dialog class="calendar" id="workout-calendar" aria-labelledby="calendar-title">
+      <div class="calendar-panel">
+        <div class="calendar-header">
+          <h2 id="calendar-title">Workout history</h2>
+          <form method="dialog">
+            <button class="button button-secondary" type="submit" autofocus>Close</button>
+          </form>
+        </div>
+
+        <div class="month-controls">
+          <button class="button button-secondary" id="previous-month" type="button" aria-label="Previous month">Prev</button>
+          <h3 id="calendar-month" aria-live="polite"></h3>
+          <button class="button button-secondary" id="next-month" type="button" aria-label="Next month">Next</button>
+        </div>
+        <div class="calendar-grid" aria-hidden="true">
+          <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+        </div>
+        <div class="calendar-grid calendar-days" id="calendar-days" role="group" aria-label="Dates"></div>
+        <p class="calendar-legend"><span aria-hidden="true"></span>Workout logged</p>
+
+        <section class="date-log" id="date-log" aria-labelledby="log-date">
+          <h3 id="log-date"></h3>
+          <div id="log-details" aria-live="polite"></div>
+        </section>
+
+        <div class="backup-actions" role="group" aria-label="Workout backups">
+          <button class="button button-secondary" id="export-backup" type="button">Export backup</button>
+          <button class="button button-secondary" id="restore-backup" type="button">Restore backup</button>
+          <input id="backup-file" type="file" accept=".json,application/json" hidden>
+        </div>
+        <p class="backup-status" id="backup-status" role="status" hidden></p>
+      </div>
+    </dialog>
   </body>
 </html>
